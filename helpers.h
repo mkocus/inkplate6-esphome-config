@@ -28,5 +28,5 @@ float readBattery(esphome::gpio::GPIOSwitch* batteryReadMosfet, esphome::adc::AD
     } else {
         pin->digital_write(false);
     }
-    return adc;
+    return double(adc) / 4095 * 1.1 * 3.548133892 * 2;
 }

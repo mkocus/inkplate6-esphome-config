@@ -6,8 +6,10 @@ esphome:
   board: esp-wrover-kit
   includes: 
     - helpers.h
+  on_boot:
+    ds1307.read_time:
 
-# Enable logging
+# Enable logger, default config
 logger:
 
 # Wifi config
@@ -22,7 +24,7 @@ wifi:
     subnet: 255.255.255.0
     dns1: 192.168.50.1
 
-# MQTT config
+# MQTT for fast sending mqtt commands
 mqtt:
   broker: 192.168.50.201
   client_id: inkplate
@@ -37,8 +39,8 @@ mqtt:
 # Enable fallback hotspot portal
 # captive_portal:
 
-# Enable Home Assistant API
-# api:
+# Home Assistant API for easy grabbing data from HA
+api:
 
 # Enable OTA
 # ota:
@@ -50,9 +52,19 @@ deep_sleep:
   id: deep_sleep_1
   run_duration: 20s
   sleep_duration: 1min
+  prevent_timeout: 10s
   wakeup_pin:           # touchscreen interupt on LOW
     number: GPIO36
     inverted: true
+
+time:
+  - platform: ds1307
+    id: rtc_time
+    address: 0x51
+  # - platform: homeassistant
+  #   on_time_sync:
+  #     ds1307.write_time:
+
 
 # ---------- GLOBALS -------------
 
@@ -65,12 +77,6 @@ globals:
   - id: global_fresh_start
     type: bool
     initial_value: "true"
-  # - id: global_time_to_wifi
-  #   type: float
-  # - id: global_time_to_api
-  #   type: float
-  # - id: global_saved_ttwifi
-  #   type: float
 
 # fonts
 font:
@@ -80,6 +86,9 @@ font:
   - file: "fonts/Helvetica.ttf"
     id: helvetica_48
     size: 48
+  - file: "fonts/Helvetica.ttf"
+    id: font_footer
+    size: 28
   - file: 'fonts/materialdesignicons-webfont.ttf'
     id: icon_font_96
     size: 96
@@ -100,17 +109,10 @@ ektf2232:
     mcp23xxx: mcp23017_hub
     number: 10
   on_touch:
-  # - deep_sleep.prevent: deep_sleep_1
-  - sensor.template.publish:
-      id: touchline_1
-      state: !lambda 'return (float)touch.x / 3;'
+  - deep_sleep.prevent: deep_sleep_1
   - logger.log:
       format: "touch x=%d, y=%d"
       args: ['touch.x', 'touch.y']
-
-
-# drawRectangle(it, 100, 400, 500, 100, 4);
-# drawRectangle(it, 100, 450, 500, 100, 4);
 
 # backlight driver
 output:
@@ -170,47 +172,36 @@ sensor:
     attenuation: 11db
     pin: 35
 
-  # - platform: uptime
-  #   id: inkplate_uptime
-  #   update_interval: 0.5s
-  #   on_value:
-  #     if:
-  #       condition:
-  #         wifi.connected:
-  #       then:
-  #         - lambda: |-
-  #             if (id(global_time_to_wifi) < 1){
-  #               id(global_time_to_wifi) = x;
-  #             }
-  #   on_raw_value:
-  #     if:
-  #       condition:
-  #         api.connected:
-  #       then:
-  #         - lambda: |-
-  #             if (id(global_time_to_api) < 1){
-  #               id(global_time_to_api) = x;
-  #             }
-
-
   - platform: template
     name: "Inkplate Battery Voltage"
+    id: batt_volt
     accuracy_decimals: 3
     unit_of_measurement: "V"
     lambda: |-
       return readBattery(id(battery_read_mosfet), id(battery_voltage));
 
   - platform: template
+    name: "Inkplate Battery"
+    id: batt
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: battery
+    lambda: |-
+      int y = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
+      if (y < 100) {return y;} else {return 100;};
+    update_interval: never
+
+  - platform: template
     id: touchline_1
     name: "Inkplate Touchline 1"
     unit_of_measurement: "px"
 
-  # - platform: homeassistant
-  #   id: temp_outside
-  #   entity_id: sensor.czujnik_temperature
-  #   unit_of_measurement: "°C"
-  #   device_class: "temperature"
-  #   icon: "mdi:thermometer"
+  - platform: homeassistant
+    id: temp_outside
+    entity_id: sensor.czujnik_temperature
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+    icon: "mdi:thermometer"
 
 light:
   - platform: monochromatic
@@ -225,45 +216,53 @@ binary_sensor:
 
   # Touch region definition
   - platform: ektf2232
-    name: "Inkplate button"
+    id: btn_1
     x_min: 100
     x_max: 200
     y_min: 200
     y_max: 300
+    filters:
+      - delayed_off: 500ms
+    on_press:
+      - mqtt.publish:
+          topic: 'zigbee2mqtt/Światło Wejście/set'
+          payload: '{"state_left": "TOGGLE"}'
   - platform: ektf2232
-    name: "Inkplate button 2"
+    id: btn_2
     x_min: 300
     x_max: 400
     y_min: 200
     y_max: 300
+    filters:
+      - delayed_off: 500ms
+    on_press:
+      - mqtt.publish:
+          topic: 'zigbee2mqtt/Światło Wejście/set'
+          payload: '{"state_right": "TOGGLE"}'
   - platform: ektf2232
-    name: "Inkplate button 3"
+    id: btn_3
     x_min: 500
     x_max: 600
     y_min: 200
     y_max: 300
+    filters:
+      - delayed_off: 500ms
     on_press:
       - mqtt.publish:
           topic: 'zigbee2mqtt/Światło Stół/set'
           payload: '{"state": "TOGGLE"}'
   - platform: ektf2232
-    name: "Inkplate button 4"
+    id: btn_4
     x_min: 700
     x_max: 800
     y_min: 200
     y_max: 300
-  # - platform: ektf2232
-  #   id: "btn1"
-  #   x_min: 100
-  #   x_max: 300
-  #   y_min: 300
-  #   y_max: 500
-  #   on_press:
-  #     then:
-  #       - deep_sleep.enter:
-  #           id: deep_sleep_1
-  #           sleep_duration: 20min
-  
+    filters:
+      - delayed_off: 500ms
+    on_press:
+      - mqtt.publish:
+          topic: 'zigbee2mqtt/Światło Dzieci/set'
+          payload: '{"state": "TOGGLE"}'
 
 
 # ---------- DISPLAY  ------------
@@ -302,12 +301,25 @@ display:
     number: 5
 
   lambda: |-
-    float current = 3.0f;
+    #define xres 1024
+    #define yres 758
+    #define x_pad 10 // border padding
+    #define y_pad 10 // border padding      
+    #define cat_pad 85 // padding before category
+    #define val_pad 70 // padding before value
+    #define icon_pad 35 //padding after icons      
+    #define x1n 20 //x position 1st column name
+    #define x1v 25 //x position 1st column value
+    #define x1i 50 //x position 1st column icon
+    #define x2n xres/2 //x position 2nd column name
+    #define x2v xres/2 //x position 2nd column value
+    #define x2i xres/2 //x position 1st column icon
+
+    float current = id(temp_outside).state;
     float previous = id(global_temp_outside);
     bool freshStart = id(global_fresh_start);
     const char* TAG = "n7.inkplate";
 
-    //id(temp_outside).state;
     // wait for sensors to be available
     if (isnan(current)){
       ESP_LOGD(TAG, "Temp sensor not yet ready.");
@@ -344,78 +356,20 @@ display:
     // light dimmer
     drawRectangle(it, 100, 400, 500, 50, 4);
     drawRectangle(it, 100, 500, 500, 50, 4);
-  
-# float ttwifi = id(global_time_to_wifi);
-# float ttapi = id(global_time_to_api);
-# it.fill(COLOR_ON);
 
-# if (ttwifi > 0 && ttwifi < 1000){
-#   id(global_time_to_wifi) = 10000;
-#   id(global_saved_ttwifi) = ttwifi;
-#   it.printf(100, 100, id(helvetica_48), COLOR_OFF, TextAlign::TOP_LEFT, "Time to wifi connect: %.2f s", ttwifi);
-#   return;
-# }
-# else if (ttapi > 0 && ttapi < 1000){
-#   id(global_time_to_api) = 10000;
-#   it.printf(100, 100, id(helvetica_48), COLOR_OFF, TextAlign::TOP_LEFT, "Time to wifi connect: %.2f s", id(global_saved_ttwifi));
-#   it.printf(100, 200, id(helvetica_48), COLOR_OFF, TextAlign::TOP_LEFT, "Time to api connect: %.2f s", ttapi);
-#   drawRectangle(it, 100, 300, 200, 200, 8);
-#   return;
-# }
+    int y = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
+    int perc = 100;
+    if (y < 100) perc = y;
+    ESP_LOGD(TAG, "Battery percantage: %d%%", perc);
 
-# id(inkplate_display).set_skip_update(true);
-
-# if (id(global_api_connected)) {
-#   it.fill(COLOR_ON);
-#   it.printf(100, 600, id(helvetica_48), COLOR_OFF, TextAlign::TOP_LEFT, "Time to api connect: %.2f s", id(inkplate_uptime).raw_state);
-#   id(global_api_connected) = false;
-#   return;
-# }        
-
-  # lambda: |-
-  #   delay(2000);
-  #   it.fill(COLOR_ON);
-
-  #   // if the api is not Connected
-  #   if (!id(hassio_api)->is_connected()) {
-  #     // it.image(0, 0, id(loading_screen), COLOR_OFF, COLOR_ON);
-  #     it.print(100, 100, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "Connecting....");
-  #     return;
-  #   }
-
-  #   it.print(100, 100, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "Connected !");
-
-
-
-
-
-  # it.print(100, 100, id(helvetica_48), COLOR_OFF, TextAlign::TOP_LEFT, "ESPHome");
-
-  # it.strftime(400, 300, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "%Y-%m-%d", id(esptime).now());
-  # it.strftime(400, 400, id(helvetica_96), COLOR_OFF, TextAlign::CENTER, "%H:%M", id(esptime).now());
-
-  # if (id(system_status).state) {
-  #   it.print(700, 100, id(helvetica_48), COLOR_OFF, TextAlign::TOP_RIGHT, "Online");
-  # } else {
-  #   it.print(700, 100, id(helvetica_48), COLOR_OFF, TextAlign::TOP_RIGHT, "Offline");
-  # }
-
-  # it.print(300, 500, id(icon_font_60), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F050F");
-  # it.printf(400, 500, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f", id(outtemp).state);
+    // footer
+    it.strftime(x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_LEFT, "Updated: %H:%M", id(rtc_time).now());
+    it.printf(xres-x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(batt_volt).state, perc);
 
 external_components:
-  # - source: github://pr#3013
-  #   components: ["inkplate6"]
-  # - source:
-  #     type: git
-  #     url: https://github.com/mkocus/esphome
-  #     ref: inkplate-6-plus
-  #   components: ["inkplate6"]
   - source: 
       type: local
       path: "D:\\Hobby\\Esphome-mkocus\\esphome\\components"
-    components: ["inkplate6", "gpio"]
+    components: ["inkplate6", "gpio", "deep_sleep", "ds1307"]
   - source: github://pr#3027
     components: ["ektf2232"]
-  - source: github://pr#3014
-    components: ["mcp47a1"]
