@@ -43,7 +43,7 @@ mqtt:
 api:
 
 # Enable OTA
-# ota:
+ota:
 
 # Enable I2C
 i2c:
@@ -51,7 +51,7 @@ i2c:
 deep_sleep:
   id: deep_sleep_1
   run_duration: 20s
-  sleep_duration: 1min
+  sleep_duration: 60min
   prevent_timeout: 10s
   wakeup_pin:           # touchscreen interupt on LOW
     number: GPIO36
@@ -90,10 +90,25 @@ font:
     id: font_footer
     size: 28
   - file: 'fonts/materialdesignicons-webfont.ttf'
-    id: icon_font_96
+    id: font_icons
     size: 96
     glyphs:
       - "\U000F050F" # Temperature
+      - "\U000F0594" # clear-night
+      - "\U000F0590" # cloudy
+      - "\U000F0595" # partlycloudy
+      - "\U000F0591" # fog      
+      - "\U000F0592" # hail
+      - "\U000F0593" # lightning
+      - "\U000F067E" # lightning-rainy
+      - "\U000F0596" # pouring
+      - "\U000F0597" # rainy
+      - "\U000F0F36" # snowy
+      - "\U000F067F" # snowy-rainy
+      - "\U000F0599" # sunny
+      - "\U000F059D" # windy
+      - "\U000F059E" # windy-variant
+      - "\U000F0F38" # exceptional
 
 # ---------- INKPLATE HARDWARE ------------
 
@@ -202,6 +217,11 @@ sensor:
     unit_of_measurement: "°C"
     device_class: "temperature"
     icon: "mdi:thermometer"
+
+text_sensor:
+  - platform: homeassistant
+    id: fc_weather
+    entity_id: weather.dom
 
 light:
   - platform: monochromatic
@@ -339,8 +359,8 @@ display:
 
     it.fill(COLOR_ON);
 
-    it.print(50, 50, id(icon_font_96), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F050F");
-    it.printf(150, 50, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f", current);
+    //it.print(50, 50, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F050F");
+    
 
     it.print(150, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "W");
     it.print(350, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "P");
@@ -357,12 +377,48 @@ display:
     drawRectangle(it, 100, 400, 500, 50, 4);
     drawRectangle(it, 100, 500, 500, 50, 4);
 
-    int y = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
-    int perc = 100;
-    if (y < 100) perc = y;
-    ESP_LOGD(TAG, "Battery percantage: %d%%", perc);
+    // weather conditions
+    #define weather_icon_x 50
+    #define weather_icon_y 50
+    it.printf(weather_icon_x + 100, weather_icon_y, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", current);
+
+    if (id(fc_weather).state == "clear-night") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0594");}
+    if (id(fc_weather).state == "cloudy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0590");}
+    if (id(fc_weather).state == "partlycloudy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0595");}
+    if (id(fc_weather).state == "fog") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0591");}
+    if (id(fc_weather).state == "hail") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0592");}
+    if (id(fc_weather).state == "lightning") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0593");}
+    if (id(fc_weather).state == "lightning-rainy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067E");}
+    if (id(fc_weather).state == "pouring") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0596");}
+    if (id(fc_weather).state == "rainy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0597");}
+    if (id(fc_weather).state == "snowy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F36");}
+    if (id(fc_weather).state == "snowy-rainy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067F");}
+    if (id(fc_weather).state == "sunny") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0599");}
+    if (id(fc_weather).state == "windy") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059D");}
+    if (id(fc_weather).state == "windy-variant") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059E");}
+    if (id(fc_weather).state == "exceptional") {
+    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F38");} 
 
     // footer
+    int tmp = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
+    int perc = 100;
+    if (tmp < 100) perc = tmp;
+    ESP_LOGD(TAG, "Battery percantage: %d%%", perc);
+
     it.strftime(x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_LEFT, "Updated: %H:%M", id(rtc_time).now());
     it.printf(xres-x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(batt_volt).state, perc);
 
