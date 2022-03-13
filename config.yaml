@@ -7,7 +7,8 @@ esphome:
   includes: 
     - helpers.h
   on_boot:
-    ds1307.read_time:
+    - ds1307.read_time:
+    - lambda: initExtended(id(mcp23017_hub), id(mcp23017_hub2));
 
 # Enable logger, default config
 logger:
@@ -17,12 +18,18 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  power_save_mode: none
 
   manual_ip:
     static_ip: 192.168.50.211
     gateway: 192.168.50.1
     subnet: 255.255.255.0
     dns1: 192.168.50.1
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # ap:
+  #   ssid: !secret wifi_fallback_ssid
+  #   password: !secret wifi_fallback_password
 
 # MQTT for fast sending mqtt commands
 mqtt:
@@ -31,11 +38,6 @@ mqtt:
   username: mqtt_user
   password: !secret mqtt_password
 
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  # ap:
-  #   ssid: !secret wifi_fallback_ssid
-  #   password: !secret wifi_fallback_password
-
 # Enable fallback hotspot portal
 # captive_portal:
 
@@ -43,7 +45,7 @@ mqtt:
 api:
 
 # Enable OTA
-ota:
+# ota:
 
 # Enable I2C
 i2c:
@@ -52,7 +54,7 @@ deep_sleep:
   id: deep_sleep_1
   run_duration: 20s
   sleep_duration: 60min
-  prevent_timeout: 10s
+  prevent_timeout: 2min
   wakeup_pin:           # touchscreen interupt on LOW
     number: GPIO36
     inverted: true
@@ -61,9 +63,10 @@ time:
   - platform: ds1307
     id: rtc_time
     address: 0x51
-  # - platform: homeassistant
-  #   on_time_sync:
-  #     ds1307.write_time:
+  - platform: homeassistant
+    id: ha_time
+    on_time_sync:
+      ds1307.write_time:
 
 
 # ---------- GLOBALS -------------
@@ -112,10 +115,11 @@ font:
 
 # ---------- INKPLATE HARDWARE ------------
 
-# port expander
 mcp23017:
-  - id: mcp23017_hub
+  - id: mcp23017_hub    # 1st port expander
     address: 0x20
+  - id: mcp23017_hub2   # 2nd port expander
+    address: 0x22
 
 # touch driver
 ektf2232:
@@ -193,7 +197,7 @@ sensor:
     accuracy_decimals: 3
     unit_of_measurement: "V"
     lambda: |-
-      return readBattery(id(battery_read_mosfet), id(battery_voltage));
+      return readBattery(id(battery_read_mosfet), id(battery_voltage)) - 0.27;  // 0.27V ADC calibration
 
   - platform: template
     name: "Inkplate Battery"
@@ -287,6 +291,35 @@ binary_sensor:
 
 # ---------- DISPLAY  ------------
 
+color:
+- id: black
+  red: 0%
+  green: 0%
+  blue: 0%
+- id: white
+  red: 100%
+  green: 100%
+  blue: 100%  
+
+graph:
+- id: graph_temp
+  duration: 5min
+  width: 300
+  height: 100
+  traces:
+    - sensor: temp_outside
+      line_type: SOLID
+      line_thickness: 6
+      color: black
+    - sensor: batt_volt
+      line_type: DOTTED
+      line_thickness: 6
+      color: black
+    - sensor: batt
+      line_type: DASHED
+      line_thickness: 6
+      color: black
+
 display:
 - platform: inkplate6
   model: INKPLATE_6_PLUS
@@ -338,7 +371,7 @@ display:
     float current = id(temp_outside).state;
     float previous = id(global_temp_outside);
     bool freshStart = id(global_fresh_start);
-    const char* TAG = "n7.inkplate";
+    const char* TAG = "n7.inkplate";  
 
     // wait for sensors to be available
     if (isnan(current)){
@@ -419,8 +452,11 @@ display:
     if (tmp < 100) perc = tmp;
     ESP_LOGD(TAG, "Battery percantage: %d%%", perc);
 
-    it.strftime(x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_LEFT, "Updated: %H:%M", id(rtc_time).now());
+    it.strftime(x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", id(rtc_time).now());
     it.printf(xres-x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(batt_volt).state, perc);
+
+    // graph test
+    it.graph(600, 50, id(graph_temp), COLOR_OFF);
 
 external_components:
   - source: 
