@@ -8,7 +8,7 @@ esphome:
     - helpers.h
   on_boot:
     - ds1307.read_time:
-    - lambda: initExtended(id(mcp23017_hub), id(mcp23017_hub2));
+#    - lambda: id(deep_sleep_1).set_ds1307(id(rtc_time));
 
 # Enable logger, default config
 logger:
@@ -52,10 +52,13 @@ i2c:
 
 deep_sleep:
   id: deep_sleep_1
-  run_duration: 20s
+  run_duration: 10s
   sleep_duration: 60min
-  prevent_timeout: 2min
-  wakeup_pin:           # touchscreen interupt on LOW
+  prevent_timeout: 20s
+  # wakeup_pin:           # external RTC
+  #   number: GPIO39
+  #   inverted: true
+  wakeup_pin:           # touchscreen + wakeup btn
     number: GPIO36
     inverted: true
 
@@ -154,13 +157,13 @@ switch:
       inverted: true
 
   # needed to enable touchscreen!
-  - platform: gpio
-    name: 'Inkplate Touchscreen Enabled'
-    restore_mode: ALWAYS_ON
-    pin:
-      mcp23xxx: mcp23017_hub
-      number: 12
-      inverted: true
+  # - platform: gpio
+  #   name: 'Inkplate Touchscreen Enabled'
+  #   restore_mode: ALWAYS_ON
+  #   pin:
+  #     mcp23xxx: mcp23017_hub
+  #     number: 12
+  #     inverted: true
   
   - platform: gpio
     name: 'Inkplate Backlight Enabled'
