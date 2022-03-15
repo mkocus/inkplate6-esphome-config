@@ -2,13 +2,16 @@
 
 esphome:
   name: inkplate
-  platform: ESP32
-  board: esp-wrover-kit
+  platformio_options:
+    upload_speed: 921600
+    board_build.partitions: huge_app.csv
   includes: 
     - helpers.h
   on_boot:
     - ds1307.read_time:
-#    - lambda: id(deep_sleep_1).set_ds1307(id(rtc_time));
+
+esp32:
+  board: esp-wrover-kit
 
 # Enable logger, default config
 logger:
@@ -83,38 +86,6 @@ globals:
   - id: global_fresh_start
     type: bool
     initial_value: "true"
-
-# fonts
-font:
-  - file: "fonts/Helvetica.ttf"
-    id: helvetica_96
-    size: 96
-  - file: "fonts/Helvetica.ttf"
-    id: helvetica_48
-    size: 48
-  - file: "fonts/Helvetica.ttf"
-    id: font_footer
-    size: 28
-  - file: 'fonts/materialdesignicons-webfont.ttf'
-    id: font_icons
-    size: 96
-    glyphs:
-      - "\U000F050F" # Temperature
-      - "\U000F0594" # clear-night
-      - "\U000F0590" # cloudy
-      - "\U000F0595" # partlycloudy
-      - "\U000F0591" # fog      
-      - "\U000F0592" # hail
-      - "\U000F0593" # lightning
-      - "\U000F067E" # lightning-rainy
-      - "\U000F0596" # pouring
-      - "\U000F0597" # rainy
-      - "\U000F0F36" # snowy
-      - "\U000F067F" # snowy-rainy
-      - "\U000F0599" # sunny
-      - "\U000F059D" # windy
-      - "\U000F059E" # windy-variant
-      - "\U000F0F38" # exceptional
 
 # ---------- INKPLATE HARDWARE ------------
 
@@ -294,34 +265,33 @@ binary_sensor:
 
 # ---------- DISPLAY  ------------
 
-color:
-- id: black
-  red: 0%
-  green: 0%
-  blue: 0%
-- id: white
-  red: 100%
-  green: 100%
-  blue: 100%  
-
-graph:
-- id: graph_temp
-  duration: 5min
-  width: 300
-  height: 100
-  traces:
-    - sensor: temp_outside
-      line_type: SOLID
-      line_thickness: 6
-      color: black
-    - sensor: batt_volt
-      line_type: DOTTED
-      line_thickness: 6
-      color: black
-    - sensor: batt
-      line_type: DASHED
-      line_thickness: 6
-      color: black
+# fonts
+font:
+  - file: "fonts/Helvetica.ttf"
+    id: font_text_96
+    size: 96
+  - file: "fonts/Helvetica.ttf"
+    id: font_footer
+    size: 28
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font_icons
+    size: 300
+    glyphs:
+      - "\U000F0594" # clear-night
+      - "\U000F0590" # cloudy
+      - "\U000F0595" # partlycloudy
+      - "\U000F0591" # fog      
+      - "\U000F0592" # hail
+      - "\U000F0593" # lightning
+      - "\U000F067E" # lightning-rainy
+      - "\U000F0596" # pouring
+      - "\U000F0597" # rainy
+      - "\U000F0F36" # snowy
+      - "\U000F067F" # snowy-rainy
+      - "\U000F0599" # sunny
+      - "\U000F059D" # windy
+      - "\U000F059E" # windy-variant
+      - "\U000F0F38" # exceptional
 
 display:
 - platform: inkplate6
@@ -357,109 +327,15 @@ display:
     number: 5
 
   lambda: |-
-    #define xres 1024
-    #define yres 758
-    #define x_pad 10 // border padding
-    #define y_pad 10 // border padding      
-    #define cat_pad 85 // padding before category
-    #define val_pad 70 // padding before value
-    #define icon_pad 35 //padding after icons      
-    #define x1n 20 //x position 1st column name
-    #define x1v 25 //x position 1st column value
-    #define x1i 50 //x position 1st column icon
-    #define x2n xres/2 //x position 2nd column name
-    #define x2v xres/2 //x position 2nd column value
-    #define x2i xres/2 //x position 1st column icon
-
-    float current = id(temp_outside).state;
-    float previous = id(global_temp_outside);
-    bool freshStart = id(global_fresh_start);
-    const char* TAG = "n7.inkplate";  
-
-    // wait for sensors to be available
-    if (isnan(current)){
-      ESP_LOGD(TAG, "Temp sensor not yet ready.");
-      id(inkplate_display).set_skip_update(true);
-      return;
-    }
-
-    // only refresh if something has changed
-    if (current == previous && !freshStart) {
-      id(inkplate_display).set_skip_update(true);
-      return;
-    }
-    id(global_fresh_start) = false;
-    ESP_LOGD(TAG, "Value changed. Previous: %.2f, new: %.2f", previous, current);
-
-    id(global_temp_outside) = current;
-
+    if (!shouldDraw()) return;
     it.fill(COLOR_ON);
 
-    //it.print(50, 50, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F050F");
-    
-
-    it.print(150, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "W");
-    it.print(350, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "P");
-    it.print(550, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "S");
-    it.print(750, 250, id(helvetica_48), COLOR_OFF, TextAlign::CENTER, "D");
-
-    // buttons
-    drawRectangle(it, 100, 200, 100, 100, 4);
-    drawRectangle(it, 300, 200, 100, 100, 4);
-    drawRectangle(it, 500, 200, 100, 100, 4);
-    drawRectangle(it, 700, 200, 100, 100, 4);
-
-    // light dimmer
-    drawRectangle(it, 100, 400, 500, 50, 4);
-    drawRectangle(it, 100, 500, 500, 50, 4);
-
-    // weather conditions
-    #define weather_icon_x 50
-    #define weather_icon_y 50
-    it.printf(weather_icon_x + 100, weather_icon_y, id(helvetica_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", current);
-
-    if (id(fc_weather).state == "clear-night") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0594");}
-    if (id(fc_weather).state == "cloudy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0590");}
-    if (id(fc_weather).state == "partlycloudy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0595");}
-    if (id(fc_weather).state == "fog") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0591");}
-    if (id(fc_weather).state == "hail") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0592");}
-    if (id(fc_weather).state == "lightning") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0593");}
-    if (id(fc_weather).state == "lightning-rainy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067E");}
-    if (id(fc_weather).state == "pouring") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0596");}
-    if (id(fc_weather).state == "rainy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0597");}
-    if (id(fc_weather).state == "snowy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F36");}
-    if (id(fc_weather).state == "snowy-rainy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067F");}
-    if (id(fc_weather).state == "sunny") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0599");}
-    if (id(fc_weather).state == "windy") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059D");}
-    if (id(fc_weather).state == "windy-variant") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059E");}
-    if (id(fc_weather).state == "exceptional") {
-    it.printf(weather_icon_x, weather_icon_y, id(font_icons), COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F38");} 
+    // current temp + weather
+    it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(temp_outside).state);
+    drawWeatherIcon(it, id(font_icons), 50, 50);
 
     // footer
-    int tmp = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
-    int perc = 100;
-    if (tmp < 100) perc = tmp;
-    ESP_LOGD(TAG, "Battery percantage: %d%%", perc);
-
-    it.strftime(x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", id(rtc_time).now());
-    it.printf(xres-x_pad, yres-y_pad/2, id(font_footer), COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(batt_volt).state, perc);
-
-    // graph test
-    it.graph(600, 50, id(graph_temp), COLOR_OFF);
+    drawFooter(it, id(font_footer));
 
 external_components:
   - source: 
