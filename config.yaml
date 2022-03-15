@@ -10,6 +10,7 @@ esphome:
   on_boot:
     - ds1307.read_time:
 
+
 esp32:
   board: esp-wrover-kit
 
@@ -84,12 +85,15 @@ globals:
     type: float
     initial_value: "-1000.0f"
     restore_value: yes
-  - id: global_fresh_start
-    type: bool
-    initial_value: "true"
   - id: global_go_to_sleep
     type: bool
     initial_value: "false"
+  - id: global_wakeup_timer
+    type: int
+    initial_value: "0"
+  - id: global_should_redraw
+    type: bool
+    initial_value: "true"
 
 # ---------- INKPLATE HARDWARE ------------
 
@@ -107,9 +111,13 @@ ektf2232:
     number: 10
   on_touch:
   - deep_sleep.prevent: sleeper
+  - display.page.show: page_sensor
   - logger.log:
       format: "touch x=%d, y=%d"
       args: ['touch.x', 'touch.y']
+  - lambda: |-
+      id(global_wakeup_timer) = 0;
+      id(global_should_redraw) = true;
 
 # backlight driver
 output:
@@ -252,7 +260,12 @@ binary_sensor:
 
 # ---------- DISPLAY  ------------
 
-# fonts
+image:
+  - file: "home.png"
+    id: image_home
+    resize: 1024x758
+    dither: FLOYDSTEINBERG
+
 font:
   - file: "fonts/Helvetica.ttf"
     id: font_text_96
@@ -313,22 +326,37 @@ display:
     mcp23xxx: mcp23017_hub
     number: 5
 
-  lambda: |-
-    if (id(global_go_to_sleep)) { id(sleeper).begin_sleep(true); return; }
-    if (!shouldDraw()) return;
-    it.fill(COLOR_ON);
+  pages:
+    - id: page_home
+      lambda: |-
+        if (id(global_go_to_sleep)) { id(sleeper).begin_sleep(true); return; }
+        if (!shouldDrawHome()) return;
+        it.fill(COLOR_ON);
 
-    // current temp + weather
-    it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(sensor_temp_outside).state);
-    drawWeatherIcon(it, id(font_icons), 50, 50);
+        // current temp + weather
+        it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(sensor_temp_outside).state);
+        drawWeatherIcon(it, id(font_icons), 50, 50);
 
-    // footer
-    drawFooter(it, id(font_footer));
+        // footer
+        drawFooter(it, id(font_footer));
 
-    // go to sleep after drawing page 1
-    id(global_go_to_sleep) = true;
-    id(switch_touchscreen_power).turn_off();
-    
+        // go to sleep after drawing page 1
+        id(global_go_to_sleep) = true;
+        id(switch_touchscreen_power).turn_off();
+    - id: page_sensor
+      lambda: |-
+        //if (!shouldDrawSensor()) return;
+        it.fill(COLOR_ON);
+        
+        it.print(100, 500, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "Sensor page!");
+        //it.image(0, 0, id(image_home));
+
+        id(global_wakeup_timer) = id(global_wakeup_timer) + 1;
+        if (id(global_wakeup_timer) > 10) {
+            id(global_should_redraw) = true;
+            id(global_wakeup_timer) = 0;
+            it.show_page(id(page_home));
+        }
 
 external_components:
   - source: 

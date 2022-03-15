@@ -36,10 +36,10 @@ float readBattery(esphome::gpio::GPIOSwitch* batteryReadMosfet, esphome::adc::AD
     return double(adc) / 4095 * 1.1 * 3.548133892 * 2;
 }
 
-bool shouldDraw() {
+bool shouldDrawHome() {
     float currentTemp = id(sensor_temp_outside).state;
     float previousTemp = id(global_temp_outside);
-    bool freshStart = id(global_fresh_start);
+    bool freshStart = id(global_should_redraw);
 
     // wait for sensors to be available
     if (isnan(currentTemp)){
@@ -54,8 +54,18 @@ bool shouldDraw() {
       return false;
     }
     id(global_temp_outside) = currentTemp;
-    id(global_fresh_start) = false;
+    id(global_should_redraw) = false;
     ESP_LOGD(TAG, "Value changed. Previous: %.2f, new: %.2f", previousTemp, currentTemp);
+    return true;
+}
+
+bool shouldDrawSensor() {
+    bool freshStart = id(global_should_redraw);
+    if (!freshStart) {
+      id(inkplate_display).set_skip_update(true);
+      return false;
+    }
+    id(global_should_redraw) = false;
     return true;
 }
 
