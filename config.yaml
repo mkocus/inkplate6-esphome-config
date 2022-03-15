@@ -54,8 +54,9 @@ api:
 i2c:
 
 deep_sleep:
-  id: deep_sleep_1
-  run_duration: 10s
+  id: sleeper
+  run_duration: 30s       # effectively timeout for contacting HA API, 
+                          # because otherwise esp will go to sleep after compliting displaying page1
   sleep_duration: 60min
   prevent_timeout: 20s
   # wakeup_pin:           # external RTC
@@ -67,10 +68,10 @@ deep_sleep:
 
 time:
   - platform: ds1307
-    id: rtc_time
+    id: time_rtc
     address: 0x51
   - platform: homeassistant
-    id: ha_time
+    id: time_ha
     on_time_sync:
       ds1307.write_time:
 
@@ -86,6 +87,9 @@ globals:
   - id: global_fresh_start
     type: bool
     initial_value: "true"
+  - id: global_go_to_sleep
+    type: bool
+    initial_value: "false"
 
 # ---------- INKPLATE HARDWARE ------------
 
@@ -102,7 +106,7 @@ ektf2232:
     mcp23xxx: mcp23017_hub
     number: 10
   on_touch:
-  - deep_sleep.prevent: deep_sleep_1
+  - deep_sleep.prevent: sleeper
   - logger.log:
       format: "touch x=%d, y=%d"
       args: ['touch.x', 'touch.y']
@@ -116,33 +120,32 @@ output:
 # ---------- HOME ASSISTANT INTEGRATION  ------------
 
 switch:
-  - platform: restart
-    name: "Inkplate Reboot"
-    id: reboot
-
   - platform: gpio
-    id: battery_read_mosfet
+    id: switch_battery_read_mosfet
     pin:
       mcp23xxx: mcp23017_hub
       number: 9
       inverted: true
 
   # needed to enable touchscreen!
-  # - platform: gpio
-  #   name: 'Inkplate Touchscreen Enabled'
-  #   restore_mode: ALWAYS_ON
-  #   pin:
-  #     mcp23xxx: mcp23017_hub
-  #     number: 12
-  #     inverted: true
+  - platform: gpio
+    id: switch_touchscreen_power
+    name: 'Inkplate Touchscreen Enabled'
+    restore_mode: ALWAYS_ON
+    pin:
+      mcp23xxx: mcp23017_hub
+      number: 12
+      inverted: true
   
   - platform: gpio
+    id: switch_backlight_power
     name: 'Inkplate Backlight Enabled'
     pin:
       mcp23xxx: mcp23017_hub
       number: 11
 
   - platform: template
+    id: switch_grayscale
     name: "Inkplate Greyscale Mode"
     lambda: return id(inkplate_display).get_greyscale();
     turn_on_action:
@@ -151,6 +154,7 @@ switch:
       - lambda: id(inkplate_display).set_greyscale(false);
 
   - platform: template
+    id: switch_partial_update
     name: "Inkplate Partial Updating"
     lambda: return id(inkplate_display).get_partial_updating();
     turn_on_action:
@@ -160,37 +164,21 @@ switch:
 
 sensor:
   - platform: adc
-    id: battery_voltage
+    id: sensor_battery_adc
     update_interval: 60s
     attenuation: 11db
     pin: 35
 
   - platform: template
     name: "Inkplate Battery Voltage"
-    id: batt_volt
+    id: sensor_battery_voltage
     accuracy_decimals: 3
     unit_of_measurement: "V"
     lambda: |-
-      return readBattery(id(battery_read_mosfet), id(battery_voltage)) - 0.27;  // 0.27V ADC calibration
-
-  - platform: template
-    name: "Inkplate Battery"
-    id: batt
-    unit_of_measurement: "%"
-    accuracy_decimals: 0
-    device_class: battery
-    lambda: |-
-      int y = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
-      if (y < 100) {return y;} else {return 100;};
-    update_interval: never
-
-  - platform: template
-    id: touchline_1
-    name: "Inkplate Touchline 1"
-    unit_of_measurement: "px"
+      return readBattery(id(switch_battery_read_mosfet), id(sensor_battery_adc)) - 0.27;  // 0.27V ADC calibration
 
   - platform: homeassistant
-    id: temp_outside
+    id: sensor_temp_outside
     entity_id: sensor.czujnik_temperature
     unit_of_measurement: "°C"
     device_class: "temperature"
@@ -198,19 +186,18 @@ sensor:
 
 text_sensor:
   - platform: homeassistant
-    id: fc_weather
+    id: tsensor_weather
     entity_id: weather.dom
 
 light:
   - platform: monochromatic
+    id: backlight
     output: dac_output
     name: "Inkplate Backlight"
-    id: backlight
 
 binary_sensor:
   - platform: status
     name: "Inkplate Status"
-    id: system_status
 
   # Touch region definition
   - platform: ektf2232
@@ -327,15 +314,21 @@ display:
     number: 5
 
   lambda: |-
+    if (id(global_go_to_sleep)) { id(sleeper).begin_sleep(true); return; }
     if (!shouldDraw()) return;
     it.fill(COLOR_ON);
 
     // current temp + weather
-    it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(temp_outside).state);
+    it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(sensor_temp_outside).state);
     drawWeatherIcon(it, id(font_icons), 50, 50);
 
     // footer
     drawFooter(it, id(font_footer));
+
+    // go to sleep after drawing page 1
+    id(global_go_to_sleep) = true;
+    id(switch_touchscreen_power).turn_off();
+    
 
 external_components:
   - source: 

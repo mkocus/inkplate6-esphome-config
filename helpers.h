@@ -37,7 +37,7 @@ float readBattery(esphome::gpio::GPIOSwitch* batteryReadMosfet, esphome::adc::AD
 }
 
 bool shouldDraw() {
-    float currentTemp = id(temp_outside).state;
+    float currentTemp = id(sensor_temp_outside).state;
     float previousTemp = id(global_temp_outside);
     bool freshStart = id(global_fresh_start);
 
@@ -60,58 +60,59 @@ bool shouldDraw() {
 }
 
 void drawWeatherIcon(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font, int x, int y) {
-    if (id(fc_weather).state == "clear-night") {
+    auto state = id(tsensor_weather).state;
+    if (state == "clear-night") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0594");
     }
-    else if (id(fc_weather).state == "cloudy") {
+    else if (state == "cloudy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0590");
     }
-    else if (id(fc_weather).state == "partlycloudy") {
+    else if (state == "partlycloudy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0595");
     }
-    else if (id(fc_weather).state == "fog") {
+    else if (state == "fog") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0591");
     }
-    else if (id(fc_weather).state == "hail") {
+    else if (state == "hail") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0592");
     }
-    else if (id(fc_weather).state == "lightning") {
+    else if (state == "lightning") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0593");
     }
-    else if (id(fc_weather).state == "lightning-rainy") {
+    else if (state == "lightning-rainy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067E");
     }
-    else if (id(fc_weather).state == "pouring") {
+    else if (state == "pouring") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0596");
     }
-    else if (id(fc_weather).state == "rainy") {
+    else if (state == "rainy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0597");
     }
-    else if (id(fc_weather).state == "snowy") {
+    else if (state == "snowy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F36");
     }
-    else if (id(fc_weather).state == "snowy-rainy") {
+    else if (state == "snowy-rainy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067F");
     }
-    else if (id(fc_weather).state == "sunny") {
+    else if (state == "sunny") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0599");
     }
-    else if (id(fc_weather).state == "windy") {
+    else if (state == "windy") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059D");
     }
-    else if (id(fc_weather).state == "windy-variant") {
+    else if (state == "windy-variant") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059E");
     }
-    else if (id(fc_weather).state == "exceptional") {
+    else if (state == "exceptional") {
         canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F38");
     }
 }
 
 void drawFooter(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font) {
-    int tmp = (1-(4.1-id(batt_volt).state)/(4.1-3.3))*100;
+    int tmp = (1-(4.1-id(sensor_battery_voltage).state)/(4.1-3.3))*100;
     int perc = 100;
     if (tmp < 100) perc = tmp;
 
-    canvas.strftime(PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", id(rtc_time).now());
-    canvas.printf(X_RES-PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(batt_volt).state, perc);
+    canvas.strftime(PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", id(time_rtc).now());
+    canvas.printf(X_RES-PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(sensor_battery_voltage).state, perc);
 }
