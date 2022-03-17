@@ -3,6 +3,8 @@
 #define PADDING 10
 #define TAG "n7.inkplate"
 
+#include "esphome/core/hal.h"
+
 void drawRectangle(esphome::display::DisplayBuffer& canvas,
                    int x1,
                    int y1,
@@ -69,60 +71,75 @@ bool shouldDrawSensor() {
     return true;
 }
 
-void drawWeatherIcon(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font, int x, int y) {
-    auto state = id(tsensor_weather).state;
+void drawWeather(esphome::display::DisplayBuffer& canvas, esphome::display::Font* fontIcon, esphome::display::Font* fontTemp,
+                     esphome::text_sensor::TextSensor* weather_sensor,  esphome::sensor::Sensor* temp_sensor,
+                     int x, int y) {
+    auto state = weather_sensor->state;
+    auto icon = "";
+    
     if (state == "clear-night") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0594");
+        icon = "\U000F0594";
     }
     else if (state == "cloudy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0590");
+        icon = "\U000F0590";
     }
     else if (state == "partlycloudy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0595");
+        icon = "\U000F0595";
     }
     else if (state == "fog") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0591");
+        icon = "\U000F0591";
     }
     else if (state == "hail") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0592");
+        icon = "\U000F0592";
     }
     else if (state == "lightning") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0593");
+        icon = "\U000F0593";
     }
     else if (state == "lightning-rainy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067E");
+        icon = "\U000F067E";
     }
     else if (state == "pouring") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0596");
+        icon = "\U000F0596";
     }
     else if (state == "rainy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0597");
+        icon = "\U000F0597";
     }
     else if (state == "snowy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F36");
+        icon = "\U000F0F36";
     }
     else if (state == "snowy-rainy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F067F");
+        icon = "\U000F067F";
     }
     else if (state == "sunny") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0599");
+        icon = "\U000F0599";
     }
     else if (state == "windy") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059D");
+        icon = "\U000F059D";
     }
     else if (state == "windy-variant") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F059E");
+        icon = "\U000F059E";
     }
     else if (state == "exceptional") {
-        canvas.printf(x, y, font, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F0F38");
+        icon = "\U000F0F38";
     }
+    canvas.printf(x, y, fontIcon, COLOR_OFF, TextAlign::TOP_LEFT, icon);
+    canvas.printf(x + 300, y + 100, fontTemp, COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", temp_sensor->state);
 }
 
-void drawFooter(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font) {
-    int tmp = (1-(4.1-id(sensor_battery_voltage).state)/(4.1-3.3))*100;
+void drawFlower(esphome::display::DisplayBuffer& canvas, esphome::display::Font* fontFlower,
+                    esphome::display::Font* fontText, esphome::sensor::Sensor* flower_sensor, int x, int y) {
+    auto value = flower_sensor->state;
+    canvas.printf(x, y, fontFlower, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F024A");
+    canvas.printf(x + 20, y + 100, fontText, COLOR_OFF, TextAlign::TOP_LEFT, "%d%%", (int)value);
+}
+
+void drawFooter(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font, 
+                esphome::time::RealTimeClock* time, esphome::sensor::Sensor* sensor_battery_voltage) {
+    auto voltage = sensor_battery_voltage->state;
+    int tmp = (1-(4.1-voltage)/(4.1-3.3))*100;
     int perc = 100;
     if (tmp < 100) perc = tmp;
 
-    canvas.strftime(PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", id(time_rtc).now());
-    canvas.printf(X_RES-PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", id(sensor_battery_voltage).state, perc);
+    canvas.strftime(PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_LEFT, "Aktualizacja: %H:%M", time->now());
+    canvas.printf(X_RES-PADDING, Y_RES-PADDING/2, font, COLOR_OFF, TextAlign::BASELINE_RIGHT, "%.2fV/%d%%", voltage, perc);
 }

@@ -5,10 +5,33 @@ esphome:
   platformio_options:
     upload_speed: 921600
     board_build.partitions: huge_app.csv
+    # build_flags: -DBOARD_HAS_PSRAM -mfix-esp32-psram-cache-issue
   includes: 
     - helpers.h
   on_boot:
     - ds1307.read_time:
+    - lambda: |-
+        auto wakeupReason = esp_sleep_get_wakeup_cause();
+        switch(wakeupReason) {
+          case 1  : ESP_LOGD(TAG, "Wakeup caused by external signal using RTC_IO"); break;
+          case 2  : ESP_LOGD(TAG, "Wakeup caused by external signal using RTC_CNTL"); break;
+          case 3  : ESP_LOGD(TAG, "Wakeup caused by timer"); break;
+          case 4  : ESP_LOGD(TAG, "Wakeup caused by touchpad"); break;
+          case 5  : ESP_LOGD(TAG, "Wakeup caused by ULP program"); break;
+          default : ESP_LOGD(TAG, "Wakeup was not caused by deep sleep"); break;
+        }
+
+        if (wakeupReason == 2) {
+          id(global_sensor_timer) = millis();
+          id(inkplate_display).show_page(id(page_sensor));
+          id(global_should_redraw) = true;
+        }
+  on_loop:
+    - lambda: |-
+        if (id(inkplate_display).get_active_page() == id(page_sensor) && millis() - id(global_sensor_timer) > 20000) {
+          id(inkplate_display).show_page(id(page_home));
+          id(global_should_redraw) = true;
+        }
 
 
 esp32:
@@ -59,7 +82,7 @@ deep_sleep:
   run_duration: 30s       # effectively timeout for contacting HA API, 
                           # because otherwise esp will go to sleep after compliting displaying page1
   sleep_duration: 60min
-  prevent_timeout: 20s
+  prevent_timeout: 30s
   # wakeup_pin:           # external RTC
   #   number: GPIO39
   #   inverted: true
@@ -88,8 +111,8 @@ globals:
   - id: global_go_to_sleep
     type: bool
     initial_value: "false"
-  - id: global_wakeup_timer
-    type: int
+  - id: global_sensor_timer
+    type: long
     initial_value: "0"
   - id: global_should_redraw
     type: bool
@@ -116,8 +139,7 @@ ektf2232:
       format: "touch x=%d, y=%d"
       args: ['touch.x', 'touch.y']
   - lambda: |-
-      id(global_wakeup_timer) = 0;
-      id(global_should_redraw) = true;
+      id(global_sensor_timer) = millis();
 
 # backlight driver
 output:
@@ -191,6 +213,26 @@ sensor:
     unit_of_measurement: "°C"
     device_class: "temperature"
     icon: "mdi:thermometer"
+
+  - platform: homeassistant
+    id: sensor_plant_tradescantia
+    entity_id: plant.tradescantia
+    attribute: moisture
+
+  - platform: homeassistant
+    id: sensor_plant_hoya
+    entity_id: plant.hoya
+    attribute: moisture
+
+  - platform: homeassistant
+    id: sensor_plant_bonsai
+    entity_id: plant.bonsai
+    attribute: moisture
+
+  - platform: homeassistant
+    id: sensor_plant_peperomia
+    entity_id: plant.peperomia
+    attribute: moisture
 
 text_sensor:
   - platform: homeassistant
@@ -271,6 +313,9 @@ font:
     id: font_text_96
     size: 96
   - file: "fonts/Helvetica.ttf"
+    id: font_text_46
+    size: 46
+  - file: "fonts/Helvetica.ttf"
     id: font_footer
     size: 28
   - file: 'fonts/materialdesignicons-webfont.ttf'
@@ -292,6 +337,11 @@ font:
       - "\U000F059D" # windy
       - "\U000F059E" # windy-variant
       - "\U000F0F38" # exceptional
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font_flower
+    size: 100
+    glyphs:
+      - "\U000F024A" # mdi-flower
 
 display:
 - platform: inkplate6
@@ -333,30 +383,38 @@ display:
         if (!shouldDrawHome()) return;
         it.fill(COLOR_ON);
 
-        // current temp + weather
-        it.printf(350, 150, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "%.2f °C", id(sensor_temp_outside).state);
-        drawWeatherIcon(it, id(font_icons), 50, 50);
+        drawWeather(it, id(font_icons), id(font_text_96), id(tsensor_weather), id(sensor_temp_outside), 50, 50);
+
+        drawFlower(it, id(font_flower), id(font_text_46), id(sensor_plant_tradescantia), 50, 350);
+        drawFlower(it, id(font_flower), id(font_text_46), id(sensor_plant_hoya), 200, 350);
+        drawFlower(it, id(font_flower), id(font_text_46), id(sensor_plant_bonsai), 350, 350);
+        drawFlower(it, id(font_flower), id(font_text_46), id(sensor_plant_peperomia), 500, 350);
 
         // footer
-        drawFooter(it, id(font_footer));
+        drawFooter(it, id(font_footer), id(time_rtc), id(sensor_battery_voltage));
 
         // go to sleep after drawing page 1
         id(global_go_to_sleep) = true;
         id(switch_touchscreen_power).turn_off();
     - id: page_sensor
       lambda: |-
-        //if (!shouldDrawSensor()) return;
+        if (!shouldDrawSensor()) return;
         it.fill(COLOR_ON);
+
+        it.print(150, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "W");
+        it.print(350, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "P");
+        it.print(550, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "S");
+        it.print(750, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "D");
+
+        // buttons
+        drawRectangle(it, 100, 200, 100, 100, 4);
+        drawRectangle(it, 300, 200, 100, 100, 4);
+        drawRectangle(it, 500, 200, 100, 100, 4);
+        drawRectangle(it, 700, 200, 100, 100, 4);
         
-        it.print(100, 500, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "Sensor page!");
+        it.print(100, 600, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "Sensor page!");
         //it.image(0, 0, id(image_home));
 
-        id(global_wakeup_timer) = id(global_wakeup_timer) + 1;
-        if (id(global_wakeup_timer) > 10) {
-            id(global_should_redraw) = true;
-            id(global_wakeup_timer) = 0;
-            it.show_page(id(page_home));
-        }
 
 external_components:
   - source: 
