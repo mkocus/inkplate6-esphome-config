@@ -28,7 +28,7 @@ esphome:
         }
   on_loop:
     - lambda: |-
-        if (id(inkplate_display).get_active_page() == id(page_sensor) && millis() - id(global_sensor_timer) > 20000) {
+        if (id(inkplate_display).get_active_page() == id(page_sensor) && millis() - id(global_sensor_timer) > 10000) {
           id(inkplate_display).show_page(id(page_home));
           id(global_should_redraw) = true;
         }
@@ -134,12 +134,29 @@ ektf2232:
     number: 10
   on_touch:
   - deep_sleep.prevent: sleeper
-  - display.page.show: page_sensor
   - logger.log:
       format: "touch x=%d, y=%d"
       args: ['touch.x', 'touch.y']
   - lambda: |-
       id(global_sensor_timer) = millis();
+  - mqtt.publish:
+      topic: 'zigbee2mqtt/zarowki_salon/set'
+      payload: !lambda |-
+        // https://www.zigbee2mqtt.io/devices/92900244777.html#philips-92900244777
+        if (touch.x > 100 && touch.x < 500) {
+          if (touch.y > 280 && touch.y < 370) {
+            auto ret =  "{\"brightness\": " + to_string(rangeConvert(touch.x, 100, 500, 0, 254)) + "}";
+            ESP_LOGD(TAG, ret.c_str());
+            return ret;
+          }
+          else if (touch.y > 380 && touch.y < 470) {
+            auto ret = "{\"color_temp\": " + to_string(rangeConvert(touch.x, 100, 500, 222, 454)) + "}";
+            ESP_LOGD(TAG, ret.c_str());
+            return ret;
+          }
+        }
+        return "";
+
 
 # backlight driver
 output:
@@ -232,7 +249,7 @@ sensor:
   - platform: homeassistant
     id: sensor_plant_peperomia
     entity_id: plant.peperomia
-    attribute: moisture
+    attribute: moisture    
 
 text_sensor:
   - platform: homeassistant
@@ -254,51 +271,74 @@ binary_sensor:
     id: btn_1
     x_min: 100
     x_max: 200
-    y_min: 200
-    y_max: 300
+    y_min: 100
+    y_max: 200
     filters:
-      - delayed_off: 500ms
+      - delayed_off: 250ms
     on_press:
       - mqtt.publish:
           topic: 'zigbee2mqtt/Światło Wejście/set'
           payload: '{"state_left": "TOGGLE"}'
   - platform: ektf2232
     id: btn_2
-    x_min: 300
-    x_max: 400
-    y_min: 200
-    y_max: 300
+    x_min: 250
+    x_max: 350
+    y_min: 100
+    y_max: 200
     filters:
-      - delayed_off: 500ms
+      - delayed_off: 250ms
     on_press:
       - mqtt.publish:
           topic: 'zigbee2mqtt/Światło Wejście/set'
           payload: '{"state_right": "TOGGLE"}'
   - platform: ektf2232
     id: btn_3
-    x_min: 500
-    x_max: 600
-    y_min: 200
-    y_max: 300
+    x_min: 400
+    x_max: 500
+    y_min: 100
+    y_max: 200
     filters:
-      - delayed_off: 500ms
+      - delayed_off: 250ms
     on_press:
       - mqtt.publish:
           topic: 'zigbee2mqtt/Światło Stół/set'
           payload: '{"state": "TOGGLE"}'
   - platform: ektf2232
     id: btn_4
-    x_min: 700
-    x_max: 800
-    y_min: 200
-    y_max: 300
+    x_min: 550
+    x_max: 650
+    y_min: 100
+    y_max: 200
     filters:
-      - delayed_off: 500ms
+      - delayed_off: 250ms
     on_press:
       - mqtt.publish:
           topic: 'zigbee2mqtt/Światło Dzieci/set'
           payload: '{"state": "TOGGLE"}'
-
+  - platform: ektf2232
+    id: btn_5
+    x_min: 700
+    x_max: 800
+    y_min: 100
+    y_max: 200
+    filters:
+      - delayed_off: 250ms
+    on_press:
+      - mqtt.publish:
+          topic: 'zigbee2mqtt/zarowki_salon/set'
+          payload: '{"state": "TOGGLE"}'
+  - platform: ektf2232
+    id: btn_6
+    x_min: 850
+    x_max: 950
+    y_min: 100
+    y_max: 200
+    filters:
+      - delayed_off: 250ms
+    on_press:
+      - mqtt.publish:
+          topic: 'zigbee2mqtt/Światło Blat Kuchenny/set'
+          payload: '{"state": "TOGGLE"}'
 
 # ---------- DISPLAY  ------------
 
@@ -401,18 +441,26 @@ display:
         if (!shouldDrawSensor()) return;
         it.fill(COLOR_ON);
 
-        it.print(150, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "W");
-        it.print(350, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "P");
-        it.print(550, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "S");
-        it.print(750, 250, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "D");
+        it.print(150, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "We");
+        it.print(300, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "Pr");
+        it.print(450, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "St");
+        it.print(600, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "Dz");
+        it.print(750, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "Sa");
+        it.print(900, 150, id(font_text_46), COLOR_OFF, TextAlign::CENTER, "Ku");
 
-        // buttons
-        drawRectangle(it, 100, 200, 100, 100, 4);
-        drawRectangle(it, 300, 200, 100, 100, 4);
-        drawRectangle(it, 500, 200, 100, 100, 4);
-        drawRectangle(it, 700, 200, 100, 100, 4);
+        // light switches
+        drawRectangle(it, 100, 100, 100, 100, 4);
+        drawRectangle(it, 250, 100, 100, 100, 4);
+        drawRectangle(it, 400, 100, 100, 100, 4);
+        drawRectangle(it, 550, 100, 100, 100, 4);
+        drawRectangle(it, 700, 100, 100, 100, 4);
+        drawRectangle(it, 850, 100, 100, 100, 4);
+
+        // hue controls
+        drawRectangle(it, 100, 300, 400, 50, 4);
+        drawRectangle(it, 100, 400, 400, 50, 4);
         
-        it.print(100, 600, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "Sensor page!");
+        //it.print(100, 600, id(font_text_96), COLOR_OFF, TextAlign::TOP_LEFT, "Sensor page!");
         //it.image(0, 0, id(image_home));
 
 

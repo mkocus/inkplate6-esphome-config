@@ -5,6 +5,19 @@
 
 #include "esphome/core/hal.h"
 
+int coerce(int n, int lower, int upper) {
+    return n <= lower ? lower : n >= upper ? upper : n;
+}
+
+float coerce(float n, float lower, float upper) {
+    return n <= lower ? lower : n >= upper ? upper : n;
+}
+
+int rangeConvert(int input, int inputMin, int inputMax, int outputMin, int outputMax) {
+    return (int)( ((input - inputMin) / (float)(inputMax - inputMin))
+          * (outputMax - outputMin) + outputMin);
+}
+
 void drawRectangle(esphome::display::DisplayBuffer& canvas,
                    int x1,
                    int y1,
@@ -128,9 +141,9 @@ void drawWeather(esphome::display::DisplayBuffer& canvas, esphome::display::Font
 
 void drawFlower(esphome::display::DisplayBuffer& canvas, esphome::display::Font* fontFlower,
                     esphome::display::Font* fontText, esphome::sensor::Sensor* flower_sensor, int x, int y) {
-    auto value = flower_sensor->state;
+    auto value = (int)(flower_sensor->state);
     canvas.printf(x, y, fontFlower, COLOR_OFF, TextAlign::TOP_LEFT, "\U000F024A");
-    canvas.printf(x + 20, y + 100, fontText, COLOR_OFF, TextAlign::TOP_LEFT, "%d%%", (int)value);
+    canvas.printf(x + 20, y + 100, fontText, COLOR_OFF, TextAlign::TOP_LEFT, "%d%%", coerce(value, 0, 100));
 }
 
 void drawFooter(esphome::display::DisplayBuffer& canvas, esphome::display::Font* font, 
